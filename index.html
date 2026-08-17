@@ -1,0 +1,890 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Кассовый план</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.png">
+<link rel="apple-touch-icon" href="icon.png">
+<meta name="theme-color" content="#12151C">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Касса">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+:root{
+  --bg:#12151C; --surface:#1C2230; --surface2:#171B26; --line:#232838; --line2:#1D2230;
+  --text:#EDE9DD; --muted:#8B93A6; --faint:#5C6478;
+  --income:#8CB89B; --income-bg:rgba(140,184,155,0.14);
+  --expense:#C87B5E; --expense-bg:rgba(200,123,94,0.14);
+  --invest:#D3B24C; --invest-bg:rgba(211,178,76,0.14);
+  --finance:#7C97C4; --finance-bg:rgba(124,151,196,0.14);
+  --gold:#C9A227; --gold-text:#E4D9A8;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',system-ui,sans-serif;}
+body{padding-bottom:88px;}
+input,select,button{font-family:inherit;color:inherit;}
+input::placeholder{color:var(--faint);}
+input:focus,select:focus{outline:2px solid var(--gold);outline-offset:1px;}
+button{cursor:pointer;}
+.mono{font-family:'IBM Plex Mono',monospace;}
+.serif{font-family:'Fraunces',serif;}
+.hidden{display:none !important;}
+#header{padding:calc(22px + env(safe-area-inset-top)) 18px 14px;border-bottom:1px solid var(--line);}
+#header .row{display:flex;align-items:baseline;justify-content:space-between;}
+#header h1{font-family:'Fraunces',serif;font-weight:600;font-size:22px;margin:0;letter-spacing:0.2px;}
+#header p{margin:4px 0 0;font-size:12.5px;color:var(--muted);}
+.icon-btn{background:none;border:none;color:var(--muted);padding:6px;display:flex;}
+.section{padding:18px 18px 0;}
+.type-tabs{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;margin-bottom:18px;}
+.type-tab{display:flex;align-items:center;gap:6px;flex-shrink:0;padding:9px 13px;border-radius:20px;border:1px solid var(--line);background:transparent;color:var(--muted);font-size:13px;font-weight:500;white-space:nowrap;}
+.type-tab.active{color:var(--tab-color);background:var(--tab-bg);border-color:var(--tab-color);}
+label.field-label{font-size:11.5px;color:var(--muted);letter-spacing:0.4px;text-transform:uppercase;display:block;}
+.amount-wrap{display:flex;align-items:baseline;gap:8px;border-bottom:1.5px solid var(--gold);padding-bottom:8px;margin-top:6px;}
+#amount-input{flex:1;background:transparent;border:none;font-family:'IBM Plex Mono',monospace;font-size:32px;font-weight:500;padding:0;}
+.field-block{margin-bottom:14px;}
+select#category-input,input.text-input,input#note-input,input#date-input{width:100%;margin-top:6px;padding:11px 10px;border-radius:10px;background:var(--surface);border:1px solid var(--line);font-size:14px;}
+#save-btn{width:100%;padding:14px;border-radius:12px;border:none;background:var(--gold);color:#12151C;font-size:15px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:8px;}
+#save-btn:disabled{opacity:0.6;}
+.recent-title{font-size:12px;letter-spacing:0.6px;color:var(--muted);text-transform:uppercase;margin:28px 0 10px;}
+.recent-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line2);}
+.recent-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.recent-mid{flex:1;min-width:0;}
+.recent-cat{font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.recent-sub{font-size:11.5px;color:var(--faint);}
+.recent-amt{font-family:'IBM Plex Mono',monospace;font-size:13.5px;white-space:nowrap;}
+.del-btn{background:none;border:none;color:var(--faint);padding:4px;display:flex;}
+.month-tabs-wrap{display:flex;align-items:center;gap:4px;margin-bottom:20px;}
+.month-tabs{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;scroll-behavior:smooth;}
+.month-arrow{flex-shrink:0;width:30px;height:30px;border-radius:50%;border:1px solid var(--line);background:var(--surface);color:var(--muted);display:flex;align-items:center;justify-content:center;padding:0;}
+.month-arrow:hover{color:var(--gold-text);border-color:var(--gold);}
+.month-tab{flex-shrink:0;padding:7px 12px;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--muted);font-size:12.5px;}
+.month-tab.active{border-color:var(--gold);background:rgba(201,162,39,0.14);color:var(--gold-text);}
+.month-title{font-family:'Fraunces',serif;font-size:18px;font-weight:600;margin:0 0 16px;}
+.sect-block{margin-bottom:22px;}
+.sect-head{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
+.sect-bar{width:3px;height:14px;border-radius:2px;}
+.sect-label{font-size:12px;letter-spacing:0.6px;text-transform:uppercase;margin:0;}
+.cat-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line2);}
+.cat-name{font-size:13.5px;}
+.cat-total{font-family:'IBM Plex Mono',monospace;font-size:14px;margin-top:3px;}
+.badges{display:flex;gap:6px;}
+.badge{display:inline-flex;flex-direction:column;align-items:center;justify-content:center;width:58px;height:58px;border-radius:50%;border:1.5px dashed var(--gold);color:var(--gold-text);transform:rotate(-3deg);flex-shrink:0;}
+.badge.muted{border-color:#3A4152;color:var(--faint);}
+.badge .roman{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:1px;opacity:0.8;}
+.badge .val{font-family:'IBM Plex Mono',monospace;font-size:10.5px;font-weight:600;line-height:1.1;}
+.empty-note{color:var(--faint);font-size:13.5px;margin-bottom:20px;}
+.summary-card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:30px;}
+.srow{display:flex;justify-content:space-between;align-items:center;padding:7px 0;}
+.srow .lbl{font-size:13px;color:#C7CBD6;}
+.srow .lbl.muted{color:var(--muted);}
+.srow.bold .lbl{font-weight:600;}
+.srow .val{font-family:'IBM Plex Mono',monospace;font-size:13.5px;font-weight:500;}
+.srow.bold .val{font-size:15px;font-weight:600;}
+.sdivider{height:1px;background:var(--line);margin:6px 0;}
+.balance-tag{font-size:10px;color:var(--gold);border:1px solid var(--gold);border-radius:6px;padding:1px 5px;margin-left:6px;}
+.balance-edit{display:flex;gap:8px;margin-top:6px;}
+.balance-edit input{flex:1;padding:9px 10px;border-radius:8px;background:var(--bg);border:1px solid var(--gold);font-family:'IBM Plex Mono',monospace;font-size:14px;}
+.balance-edit button{padding:0 14px;border-radius:8px;border:none;font-weight:600;font-size:13px;}
+.ok-btn{background:var(--gold);color:#12151C;}
+.cancel-btn{background:transparent;border:1px solid var(--line) !important;color:var(--muted);padding:0 10px !important;display:flex;align-items:center;}
+.reset-link{margin-top:8px;background:none;border:none;color:var(--muted);font-size:12px;text-decoration:underline;padding:0;}
+#settings-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.55);display:flex;align-items:flex-end;z-index:50;}
+#settings-sheet{width:100%;max-width:520px;margin:0 auto;background:var(--surface2);border-radius:18px 18px 0 0;padding:20px;border:1px solid var(--line);border-bottom:none;}
+#settings-sheet .row{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;}
+#settings-sheet h3{margin:0;font-family:'Fraunces',serif;font-size:17px;}
+#settings-sheet input{width:100%;margin-top:6px;padding:11px 10px;border-radius:10px;background:var(--surface);border:1px solid var(--line);font-size:14px;}
+#settings-sheet .hint{font-size:12px;color:var(--faint);margin-top:14px;line-height:1.5;}
+#toast{position:fixed;bottom:96px;left:50%;transform:translateX(-50%);background:var(--line);padding:9px 16px;border-radius:20px;font-size:13px;z-index:60;border:1px solid #2E3648;opacity:0;pointer-events:none;transition:opacity .2s;}
+#toast.show{opacity:1;}
+#bottom-nav{position:fixed;bottom:0;left:0;right:0;display:flex;background:var(--surface2);border-top:1px solid var(--line);padding:10px 16px calc(10px + env(safe-area-inset-bottom));max-width:560px;margin:0 auto;}
+.nav-btn{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;background:none;border:none;color:var(--faint);padding:6px 0;font-size:11px;font-weight:500;}
+.nav-btn.active{color:var(--gold);}
+.nav-btn svg{width:20px;height:20px;}
+#app-wrap{max-width:560px;margin:0 auto;}
+.import-card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:16px;}
+.import-card h4{margin:0 0 4px;font-family:'Fraunces',serif;font-size:15px;font-weight:600;}
+.import-card p{margin:0 0 12px;font-size:12.5px;color:var(--muted);line-height:1.5;}
+.upload-btn{width:100%;padding:12px;border-radius:10px;border:1px dashed var(--gold);background:transparent;color:var(--gold-text);font-size:13.5px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:8px;}
+.draft-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:12px 0;border-bottom:1px solid var(--line2);}
+.draft-row input, .draft-row select{padding:8px 8px;border-radius:8px;background:var(--bg);border:1px solid var(--line);color:var(--text);font-size:13px;}
+.draft-row .draft-date{width:120px;}
+.draft-row .draft-amount{width:100px;font-family:'IBM Plex Mono',monospace;}
+.draft-row .draft-type{width:110px;}
+.draft-row .draft-cat{flex:1;min-width:140px;}
+.draft-row .draft-note{width:100%;margin-top:4px;}
+.draft-remove{background:none;border:none;color:var(--faint);padding:4px;display:flex;}
+.spinner{display:inline-block;width:16px;height:16px;border:2px solid var(--faint);border-top-color:var(--gold);border-radius:50%;animation:spin 0.8s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+::-webkit-scrollbar{display:none;}
+</style>
+</head>
+<body>
+<div id="app-wrap">
+  <div id="header">
+    <div class="row">
+      <h1>Кассовый план</h1>
+      <button class="icon-btn" id="open-settings" aria-label="Настройки">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06A1.65 1.65 0 004.6 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 009 4.6a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09A1.65 1.65 0 0015 4.6a1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+      </button>
+    </div>
+    <p id="header-sub">личный · 2026</p>
+  </div>
+
+  <div id="entry-tab" class="section"></div>
+  <div id="import-tab" class="section hidden"></div>
+  <div id="report-tab" class="section hidden"></div>
+</div>
+
+<div id="settings-overlay" class="hidden">
+  <div id="settings-sheet">
+    <div class="row">
+      <h3>Настройки</h3>
+      <button class="icon-btn" id="close-settings" style="padding:0;"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+    </div>
+    <label class="field-label">Год</label>
+    <input type="number" id="year-input">
+    <div style="margin-bottom:14px;"></div>
+    <label class="field-label">Остаток на начало года (₸)</label>
+    <input inputmode="decimal" id="start-balance-input" class="mono">
+    <p class="hint">Отчёт считает остаток на начало каждого месяца автоматически, отталкиваясь от этой суммы и всех записей за год. Остаток за отдельный месяц можно скорректировать вручную прямо в отчёте.</p>
+    <div style="height:1px;background:var(--line);margin:18px 0;"></div>
+    <label class="field-label">Экспорт</label>
+    <button id="export-excel-btn" style="width:100%;margin-top:8px;padding:12px;border-radius:10px;border:1px solid var(--gold);background:transparent;color:var(--gold-text);font-size:14px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:8px;">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
+      Скачать Excel (.xlsx)
+    </button>
+    <p class="hint">Выгрузит все записи и отчёт за выбранный год в файл Excel — лист «Записи» (все операции) и лист «Отчёт» (по статьям и декадам, как в исходном файле).</p>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<div id="bottom-nav">
+  <button class="nav-btn active" id="nav-entry">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+    <span>Ввод</span>
+  </button>
+  <button class="nav-btn" id="nav-import">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><path d="M7 10l5-5 5 5"/><path d="M12 5v12"/></svg>
+    <span>Импорт</span>
+  </button>
+  <button class="nav-btn" id="nav-report">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M18 17V9M13 17V5M8 17v-3"/></svg>
+    <span>Отчёт</span>
+  </button>
+</div>
+
+<script>
+const MONTHS = ["Январь","Февраль","Март","Апрель","Май","Июнь","Июль","Август","Сентябрь","Октябрь","Ноябрь","Декабрь"];
+const MONTH_SHORT = ["Янв","Фев","Мар","Апр","Май","Июн","Июл","Авг","Сен","Окт","Ноя","Дек"];
+
+const SECTIONS = {
+  income:   { label: "Поступления",           sign: 1,  categories: ["Зарплата","Подработка / фриланс","Доход от аренды","Прочие поступления"] },
+  expense:  { label: "Расходы",                sign: -1, categories: ["Жильё (аренда / ипотека)","Коммунальные услуги","Продукты","Транспорт","Связь и интернет","Кредиты / рассрочки (платежи)","Здоровье","Одежда и личные расходы","Развлечения","Образование","Налоги","Прочие расходы"] },
+  investOut:{ label: "Инвестиционные выплаты", sign: -1, categories: ["Покупка авто / техники","Инвестиции / вклады"] },
+  finIn:    { label: "Получение кредитов",     sign: 1,  categories: ["Получение кредитов / займов"] },
+  finOut:   { label: "Погашение кредитов",     sign: -1, categories: ["Погашение кредитов (основной долг)","Погашение процентов"] },
+};
+
+const TYPE_TABS = [
+  { key:"income",    label:"Доход",          accent:"income",  icon:'<path d="M23 6l-9.5 9.5-5-5L1 18"/><path d="M17 6h6v6"/>' },
+  { key:"expense",   label:"Расход",         accent:"expense", icon:'<path d="M23 18l-9.5-9.5-5 5L1 6"/><path d="M17 18h6v-6"/>' },
+  { key:"investOut", label:"Инвестиция",     accent:"invest",  icon:'<path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0016.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 002 8.5c0 2.29 1.51 4.04 3 5.5l7 7z"/>' },
+  { key:"finIn",     label:"Кредит получен", accent:"finance", icon:'<path d="M3 21h18M5 21V7l7-4 7 4v14M9 9h1M9 13h1M14 9h1M14 13h1"/>' },
+  { key:"finOut",    label:"Кредит погашен", accent:"finance", icon:'<path d="M3 21h18M5 21V7l7-4 7 4v14M9 9h1M9 13h1M14 9h1M14 13h1"/>' },
+];
+
+const ACCENTS = {
+  income:  { text:"#8CB89B", bg:"rgba(140,184,155,0.14)" },
+  expense: { text:"#C87B5E", bg:"rgba(200,123,94,0.14)" },
+  invest:  { text:"#D3B24C", bg:"rgba(211,178,76,0.14)" },
+  finance: { text:"#7C97C4", bg:"rgba(124,151,196,0.14)" },
+};
+
+function accentOf(sectionKey){ return ACCENTS[TYPE_TABS.find(t=>t.key===sectionKey).accent]; }
+function decadeOf(day){ return day<=10?0:day<=20?1:2; }
+function fmt(n){ const r=Math.round(n); return (r<0?"−":"")+Math.abs(r).toLocaleString("ru-RU")+" ₸"; }
+function todayISO(){ return new Date().toISOString().slice(0,10); }
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,8); }
+
+// ---- storage (plain localStorage, fully offline) ----
+let storageBlocked = false;
+function loadEntries(){ try{ return JSON.parse(localStorage.getItem("kassa-entries")||"[]"); }catch{ storageBlocked = true; return []; } }
+function saveEntries(v){ try{ localStorage.setItem("kassa-entries", JSON.stringify(v)); }catch{ storageBlocked = true; showToast("Браузер блокирует сохранение на этом файле — см. подсказку внизу"); } }
+function loadSettings(){ try{ return Object.assign({startBalance:0,year:2026,balanceOverrides:{}}, JSON.parse(localStorage.getItem("kassa-settings")||"{}")); }catch{ storageBlocked = true; return {startBalance:0,year:2026,balanceOverrides:{}}; } }
+function saveSettings(v){ try{ localStorage.setItem("kassa-settings", JSON.stringify(v)); }catch{ storageBlocked = true; showToast("Браузер блокирует сохранение на этом файле — см. подсказку внизу"); } }
+
+// ---- state ----
+let entries = loadEntries();
+let settings = loadSettings();
+let tab = "entry";
+let typeKey = "income";
+let category = SECTIONS.income.categories[0];
+let reportMonth = new Date().getMonth();
+let editingBalance = false;
+
+function showToast(msg){
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(()=>t.classList.remove("show"), 1800);
+}
+
+function yearEntries(){ return entries.filter(e => new Date(e.date+"T00:00:00").getFullYear() === settings.year); }
+function monthEntriesFor(m){ return yearEntries().filter(e => new Date(e.date+"T00:00:00").getMonth() === m); }
+function monthCFFor(m){
+  const me = monthEntriesFor(m);
+  const inn = me.filter(e=>e.section==="income").reduce((s,e)=>s+e.amount,0);
+  const out = me.filter(e=>e.section==="expense").reduce((s,e)=>s+e.amount,0);
+  const inv = me.filter(e=>e.section==="investOut").reduce((s,e)=>s+e.amount,0);
+  const fin = me.filter(e=>e.section==="finIn").reduce((s,e)=>s+e.amount,0) - me.filter(e=>e.section==="finOut").reduce((s,e)=>s+e.amount,0);
+  return (inn-out) - inv + fin;
+}
+function balanceBeforeMonth(m){
+  const overrides = settings.balanceOverrides || {};
+  let bal = settings.startBalance;
+  for(let i=0;i<m;i++){
+    const key = `${settings.year}-${i}`;
+    if(overrides[key] !== undefined) bal = overrides[key];
+    bal += monthCFFor(i);
+  }
+  const key = `${settings.year}-${m}`;
+  if(overrides[key] !== undefined) bal = overrides[key];
+  return bal;
+}
+
+// ---------- render: entry tab ----------
+function renderEntryTab(){
+  const el = document.getElementById("entry-tab");
+  const accent = accentOf(typeKey);
+  const recent = [...entries].sort((a,b)=> a.date<b.date?1:a.date>b.date?-1:0).slice(0,8);
+
+  el.innerHTML = `
+    <div class="type-tabs">
+      ${TYPE_TABS.map(t=>{
+        const a = ACCENTS[t.accent];
+        const active = t.key===typeKey;
+        return `<button class="type-tab ${active?'active':''}" data-type="${t.key}" style="${active?`--tab-color:${a.text};--tab-bg:${a.bg};`:''}">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">${t.icon}</svg> ${t.label}
+        </button>`;
+      }).join('')}
+    </div>
+
+    <div class="field-block">
+      <label class="field-label">Сумма</label>
+      <div class="amount-wrap" style="border-bottom-color:${accent.text}">
+        <input id="amount-input" inputmode="decimal" placeholder="0">
+        <span style="color:var(--faint);font-size:18px;">₸</span>
+      </div>
+    </div>
+
+    <div class="field-block">
+      <label class="field-label">Статья</label>
+      <select id="category-input">
+        ${SECTIONS[typeKey].categories.map(c=>`<option value="${c}" ${c===category?'selected':''}>${c}</option>`).join('')}
+      </select>
+    </div>
+
+    <div class="field-block">
+      <label class="field-label">Дата</label>
+      <input type="date" id="date-input" value="${todayISO()}">
+    </div>
+
+    <div class="field-block">
+      <label class="field-label">Заметка (необязательно)</label>
+      <input id="note-input" placeholder="Например: такси до офиса">
+    </div>
+
+    <button id="save-btn" style="background:${accent.text}">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+      Добавить запись
+    </button>
+
+    <div class="recent-title">Недавние записи</div>
+    <div id="recent-list">
+      ${recent.length===0 ? '<p class="empty-note">Пока нет записей — добавьте первую выше.</p>' : recent.map(e=>{
+        const a = accentOf(e.section);
+        const sign = SECTIONS[e.section].sign > 0 ? "+" : "−";
+        return `<div class="recent-row">
+          <div class="recent-dot" style="background:${a.text}"></div>
+          <div class="recent-mid">
+            <div class="recent-cat">${e.category}</div>
+            <div class="recent-sub">${e.date}${e.note?' · '+e.note:''}</div>
+          </div>
+          <div class="recent-amt" style="color:${a.text}">${sign}${Math.round(e.amount).toLocaleString("ru-RU")}</div>
+          <button class="del-btn" data-del="${e.id}"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14z"/></svg></button>
+        </div>`;
+      }).join('')}
+    </div>
+  `;
+
+  el.querySelectorAll(".type-tab").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      typeKey = btn.dataset.type;
+      category = SECTIONS[typeKey].categories[0];
+      renderEntryTab();
+    });
+  });
+  document.getElementById("category-input").addEventListener("change", e=>{ category = e.target.value; });
+  document.getElementById("save-btn").addEventListener("click", onAddEntry);
+  el.querySelectorAll("[data-del]").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      entries = entries.filter(e=>e.id!==btn.dataset.del);
+      saveEntries(entries);
+      renderEntryTab();
+      if(tab==="report") renderReportTab();
+    });
+  });
+}
+
+function onAddEntry(){
+  const amountInput = document.getElementById("amount-input");
+  const val = parseFloat(String(amountInput.value).replace(",", "."));
+  if(!val || val<=0){ showToast("Укажите сумму больше нуля"); return; }
+  const dateVal = document.getElementById("date-input").value || todayISO();
+  const noteVal = document.getElementById("note-input").value.trim();
+  const entry = { id: uid(), date: dateVal, section: typeKey, category, amount: val, note: noteVal };
+  entries = [...entries, entry];
+  saveEntries(entries);
+  showToast("Записано");
+  renderEntryTab();
+}
+
+// ---------- render: report tab ----------
+function renderReportTab(){
+  const el = document.getElementById("report-tab");
+  const me = monthEntriesFor(reportMonth);
+
+  const categoryTotals = {};
+  for(const e of me){
+    const day = new Date(e.date+"T00:00:00").getDate();
+    const d = decadeOf(day);
+    if(!categoryTotals[e.category]) categoryTotals[e.category] = [0,0,0];
+    categoryTotals[e.category][d] += e.amount;
+  }
+  function sectionTotal(key){ return me.filter(e=>e.section===key).reduce((s,e)=>s+e.amount,0); }
+
+  const totalIn = sectionTotal("income");
+  const totalOut = sectionTotal("expense");
+  const operatingCF = totalIn - totalOut;
+  const investCF = -sectionTotal("investOut");
+  const financeCF = sectionTotal("finIn") - sectionTotal("finOut");
+  const monthCF = operatingCF + investCF + financeCF;
+  const balBefore = balanceBeforeMonth(reportMonth);
+  const balAfter = balBefore + monthCF;
+  const overrideKey = `${settings.year}-${reportMonth}`;
+  const isOverridden = (settings.balanceOverrides||{})[overrideKey] !== undefined;
+
+  let sectionsHtml = "";
+  for(const [key, sect] of Object.entries(SECTIONS)){
+    const cats = sect.categories.filter(c=>categoryTotals[c]);
+    if(cats.length===0) continue;
+    const a = accentOf(key);
+    sectionsHtml += `<div class="sect-block">
+      <div class="sect-head"><div class="sect-bar" style="background:${a.text}"></div><h3 class="sect-label" style="color:${a.text}">${sect.label}</h3></div>
+      ${cats.map(c=>{
+        const [d1,d2,d3] = categoryTotals[c];
+        const total = d1+d2+d3;
+        function badge(roman, v){
+          const muted = v===0;
+          const display = v===0 ? "—" : (Math.abs(v)>=1000 ? Math.round(v/1000)+"к" : Math.round(v));
+          return `<div class="badge ${muted?'muted':''}"><span class="roman">${roman}</span><span class="val">${display}</span></div>`;
+        }
+        return `<div class="cat-row">
+          <div style="flex:1 1 40%;min-width:0;">
+            <div class="cat-name">${c}</div>
+            <div class="cat-total" style="color:${a.text}">${fmt(total)}</div>
+          </div>
+          <div class="badges">${badge("I",d1)}${badge("II",d2)}${badge("III",d3)}</div>
+        </div>`;
+      }).join('')}
+    </div>`;
+  }
+
+  el.innerHTML = `
+    <div class="month-tabs-wrap">
+      <button class="month-arrow" id="month-prev" aria-label="Раньше"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg></button>
+      <div class="month-tabs" id="month-tabs">
+        ${MONTH_SHORT.map((m,i)=>`<button class="month-tab ${i===reportMonth?'active':''}" data-month="${i}">${m}</button>`).join('')}
+      </div>
+      <button class="month-arrow" id="month-next" aria-label="Позже"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg></button>
+    </div>
+    <p class="month-title">${MONTHS[reportMonth]} ${settings.year}</p>
+
+    ${sectionsHtml}
+    ${me.length===0 ? '<p class="empty-note">За этот месяц записей нет.</p>' : ''}
+
+    <div class="summary-card">
+      <div class="srow"><span class="lbl" style="color:var(--income)">Итого приток</span><span class="val" style="color:var(--income)">${fmt(totalIn)}</span></div>
+      <div class="srow"><span class="lbl" style="color:var(--expense)">Итого отток</span><span class="val" style="color:var(--expense)">${fmt(-totalOut)}</span></div>
+      <div class="srow bold"><span class="lbl">ДДС по операционной деятельности</span><span class="val">${fmt(operatingCF)}</span></div>
+      <div class="sdivider"></div>
+      <div class="srow"><span class="lbl">ДДС по инвестиционной деятельности</span><span class="val">${fmt(investCF)}</span></div>
+      <div class="srow"><span class="lbl">ДДС по финансовой деятельности</span><span class="val">${fmt(financeCF)}</span></div>
+      <div class="sdivider"></div>
+      <div class="srow bold"><span class="lbl">Итого денежный поток</span><span class="val" style="color:var(--gold-text)">${fmt(monthCF)}</span></div>
+      <div class="sdivider"></div>
+      <div id="balance-row">
+        ${editingBalance ? `
+          <div style="padding:8px 0;">
+            <span style="font-size:12px;color:var(--muted);">Остаток на начало ${MONTHS[reportMonth].toLowerCase()}я, ₸</span>
+            <div class="balance-edit">
+              <input id="balance-input" inputmode="decimal" value="${Math.round(balBefore)}">
+              <button class="ok-btn" id="balance-save">OK</button>
+              <button class="cancel-btn" id="balance-cancel"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+            </div>
+            ${isOverridden ? `<button class="reset-link" id="balance-reset">Сбросить и считать автоматически</button>` : ''}
+          </div>
+        ` : `
+          <div class="srow">
+            <span class="lbl muted">Остаток на начало периода ${isOverridden?'<span class="balance-tag">вручную</span>':''}</span>
+            <span style="display:flex;align-items:center;gap:8px;">
+              <span class="val" style="color:var(--muted)">${fmt(balBefore)}</span>
+              <button class="icon-btn" id="balance-edit-btn" style="padding:2px;"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06A1.65 1.65 0 004.6 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 009 4.6a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09A1.65 1.65 0 0015 4.6a1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg></button>
+            </span>
+          </div>
+        `}
+      </div>
+      <div class="srow bold"><span class="lbl">Остаток на конец периода</span><span class="val" style="color:var(--gold-text)">${fmt(balAfter)}</span></div>
+    </div>
+  `;
+
+  el.querySelectorAll(".month-tab").forEach(btn=>{
+    btn.addEventListener("click", ()=>{ reportMonth = parseInt(btn.dataset.month); editingBalance=false; renderReportTab(); });
+  });
+
+  const monthScroller = document.getElementById("month-tabs");
+  // let vertical mouse-wheel scroll the horizontal month strip (desktop mice/trackpads)
+  monthScroller.addEventListener("wheel", (e)=>{
+    if(Math.abs(e.deltaY) > Math.abs(e.deltaX)){
+      monthScroller.scrollLeft += e.deltaY;
+      e.preventDefault();
+    }
+  }, { passive:false });
+  document.getElementById("month-prev").addEventListener("click", ()=> monthScroller.scrollBy({left:-160, behavior:"smooth"}));
+  document.getElementById("month-next").addEventListener("click", ()=> monthScroller.scrollBy({left:160, behavior:"smooth"}));
+  const activeMonthBtn = monthScroller.querySelector(".month-tab.active");
+  if(activeMonthBtn && activeMonthBtn.scrollIntoView) activeMonthBtn.scrollIntoView({ inline: "center", block: "nearest" });
+
+  const editBtn = document.getElementById("balance-edit-btn");
+  if(editBtn) editBtn.addEventListener("click", ()=>{ editingBalance = true; renderReportTab(); });
+  const cancelBtn = document.getElementById("balance-cancel");
+  if(cancelBtn) cancelBtn.addEventListener("click", ()=>{ editingBalance = false; renderReportTab(); });
+  const saveBtn = document.getElementById("balance-save");
+  if(saveBtn) saveBtn.addEventListener("click", ()=>{
+    const v = parseFloat(String(document.getElementById("balance-input").value).replace(",", "."));
+    if(!isNaN(v)){
+      settings.balanceOverrides = settings.balanceOverrides || {};
+      settings.balanceOverrides[overrideKey] = v;
+      saveSettings(settings);
+      showToast("Остаток обновлён");
+    }
+    editingBalance = false;
+    renderReportTab();
+  });
+  const resetBtn = document.getElementById("balance-reset");
+  if(resetBtn) resetBtn.addEventListener("click", ()=>{
+    delete (settings.balanceOverrides||{})[overrideKey];
+    saveSettings(settings);
+    showToast("Возврат к автосчёту");
+    editingBalance = false;
+    renderReportTab();
+  });
+}
+
+// ---------- import tab: bank statement + receipt photo ----------
+let draftRows = []; // pending rows from a parsed statement, awaiting confirmation
+
+function guessSection(amount){ return amount >= 0 ? "income" : "expense"; }
+function defaultCategory(section){ return section==="income" ? "Прочие поступления" : "Прочие расходы"; }
+
+function renderImportTab(){
+  const el = document.getElementById("import-tab");
+  el.innerHTML = `
+    <div class="import-card">
+      <h4>Загрузить выписку</h4>
+      <p>Файл Excel или CSV из банк-приложения (Kaspi, Halyk и т.д.). Найдём колонки с датой, суммой и назначением платежа автоматически — перед сохранением всё можно проверить и поправить.</p>
+      <button class="upload-btn" id="pick-statement">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><path d="M7 10l5-5 5 5"/><path d="M12 5v12"/></svg>
+        Выбрать файл выписки
+      </button>
+      <input type="file" id="statement-file" accept=".xlsx,.xls,.csv" class="hidden">
+    </div>
+
+    <div class="import-card">
+      <h4>Добавить чек (фото)</h4>
+      <p>Сфотографируйте или загрузите чек — попробуем распознать сумму. Точность не 100%, сумму и статью нужно будет проверить перед сохранением.</p>
+      <button class="upload-btn" id="pick-receipt">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="13" r="4"/><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/></svg>
+        Сфотографировать / выбрать чек
+      </button>
+      <input type="file" id="receipt-file" accept="image/*" capture="environment" class="hidden">
+      <div id="ocr-status" style="margin-top:10px;font-size:12.5px;color:var(--muted);display:none;align-items:center;gap:8px;">
+        <span class="spinner"></span> <span id="ocr-status-text">Распознаём текст…</span>
+      </div>
+    </div>
+
+    <div id="draft-area"></div>
+  `;
+
+  document.getElementById("pick-statement").addEventListener("click", ()=> document.getElementById("statement-file").click());
+  document.getElementById("statement-file").addEventListener("change", onStatementFile);
+  document.getElementById("pick-receipt").addEventListener("click", ()=> document.getElementById("receipt-file").click());
+  document.getElementById("receipt-file").addEventListener("change", onReceiptFile);
+
+  renderDraftArea();
+}
+
+function renderDraftArea(){
+  const area = document.getElementById("draft-area");
+  if(!area) return;
+  if(draftRows.length === 0){ area.innerHTML = ""; return; }
+
+  area.innerHTML = `
+    <div class="import-card">
+      <h4>Проверьте перед сохранением (${draftRows.length})</h4>
+      <p>Проверьте тип, статью и сумму каждой строки — при необходимости поправьте или удалите лишние.</p>
+      <div id="draft-list"></div>
+      <button id="save-drafts-btn" style="width:100%;margin-top:12px;padding:13px;border-radius:10px;border:none;background:var(--gold);color:#12151C;font-weight:600;font-size:14px;">
+        Сохранить всё (${draftRows.length})
+      </button>
+    </div>
+  `;
+  const list = document.getElementById("draft-list");
+  list.innerHTML = draftRows.map((r,i)=>{
+    return `<div class="draft-row" data-idx="${i}">
+      <input type="date" class="draft-date" value="${r.date}">
+      <select class="draft-type">
+        ${TYPE_TABS.map(t=>`<option value="${t.key}" ${t.key===r.section?'selected':''}>${t.label}</option>`).join('')}
+      </select>
+      <select class="draft-cat">
+        ${SECTIONS[r.section].categories.map(c=>`<option value="${c}" ${c===r.category?'selected':''}>${c}</option>`).join('')}
+      </select>
+      <input type="text" inputmode="decimal" class="draft-amount" value="${r.amount}">
+      <input type="text" class="draft-note" placeholder="Заметка" value="${r.note||''}">
+      <button class="draft-remove" data-remove="${i}"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14z"/></svg></button>
+    </div>`;
+  }).join('');
+
+  list.querySelectorAll(".draft-row").forEach(row=>{
+    const idx = parseInt(row.dataset.idx);
+    row.querySelector(".draft-date").addEventListener("change", e=> draftRows[idx].date = e.target.value);
+    row.querySelector(".draft-amount").addEventListener("change", e=> draftRows[idx].amount = parseFloat(String(e.target.value).replace(",", "."))||0);
+    row.querySelector(".draft-note").addEventListener("change", e=> draftRows[idx].note = e.target.value);
+    row.querySelector(".draft-type").addEventListener("change", e=>{
+      draftRows[idx].section = e.target.value;
+      draftRows[idx].category = SECTIONS[e.target.value].categories[0];
+      renderDraftArea();
+    });
+    row.querySelector(".draft-cat").addEventListener("change", e=> draftRows[idx].category = e.target.value);
+  });
+  list.querySelectorAll("[data-remove]").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      draftRows.splice(parseInt(btn.dataset.remove),1);
+      renderDraftArea();
+    });
+  });
+  document.getElementById("save-drafts-btn").addEventListener("click", ()=>{
+    const toAdd = draftRows.map(r=>({ id:uid(), date:r.date, section:r.section, category:r.category, amount: Math.abs(r.amount), note:r.note||"" }));
+    entries = [...entries, ...toAdd];
+    saveEntries(entries);
+    showToast(`Добавлено записей: ${toAdd.length}`);
+    draftRows = [];
+    renderDraftArea();
+  });
+}
+
+// --- statement (xlsx/csv) parsing ---
+function onStatementFile(e){
+  const file = e.target.files[0];
+  if(!file) return;
+  if(typeof XLSX === "undefined"){ showToast("Нет соединения с интернетом — импорт недоступен офлайн"); return; }
+  const reader = new FileReader();
+  reader.onload = (ev)=>{
+    try{
+      const wb = XLSX.read(ev.target.result, {type:"array", cellDates:true});
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:""});
+      const parsed = parseStatementRows(rows);
+      if(parsed.length === 0){ showToast("Не нашли подходящих строк в файле"); return; }
+      draftRows = draftRows.concat(parsed);
+      showToast(`Найдено строк: ${parsed.length}`);
+      renderDraftArea();
+    }catch(err){ console.error(err); showToast("Не удалось прочитать файл"); }
+  };
+  reader.readAsArrayBuffer(file);
+  e.target.value = "";
+}
+
+function parseStatementRows(rows){
+  if(rows.length < 2) return [];
+  // find header row: first row containing recognizable keywords
+  let headerIdx = 0, header = rows[0].map(h=>String(h).toLowerCase());
+  const dateKeys = ["дата","date","дата операции","дата платежа"];
+  const amountKeys = ["сумма","amount","сумма операции","сумма платежа"];
+  const noteKeys = ["назначение","описание","комментарий","merchant","получатель","назначение платежа","description"];
+
+  function findCol(keys){
+    for(let i=0;i<header.length;i++){
+      for(const k of keys) if(header[i].includes(k)) return i;
+    }
+    return -1;
+  }
+  let dateCol = findCol(dateKeys);
+  let amountCol = findCol(amountKeys);
+  let noteCol = findCol(noteKeys);
+
+  // fallback: scan a few rows to find a column that looks like dates and one that looks like numbers
+  const dataStart = (dateCol>=0 || amountCol>=0) ? 1 : 0;
+  if(dateCol<0 || amountCol<0){
+    const sample = rows.slice(dataStart, dataStart+10);
+    if(dateCol<0){
+      outer: for(let c=0;c<Math.max(...sample.map(r=>r.length));c++){
+        for(const r of sample){ if(r[c] && looksLikeDate(r[c])){ dateCol=c; break outer; } }
+      }
+    }
+    if(amountCol<0){
+      outer2: for(let c=0;c<Math.max(...sample.map(r=>r.length));c++){
+        if(c===dateCol) continue;
+        for(const r of sample){ if(r[c]!=="" && !isNaN(parseFloat(String(r[c]).replace(",","."))) ){ amountCol=c; break outer2; } }
+      }
+    }
+  }
+  if(dateCol<0 || amountCol<0) return [];
+
+  const out = [];
+  for(let i=dataStart;i<rows.length;i++){
+    const r = rows[i];
+    if(!r || r.length===0) continue;
+    const rawAmount = r[amountCol];
+    const amount = parseFloat(String(rawAmount).replace(/\s/g,"").replace(",", "."));
+    if(!rawAmount || isNaN(amount) || amount===0) continue;
+    const rawDate = r[dateCol];
+    const date = normalizeDate(rawDate);
+    if(!date) continue;
+    const section = guessSection(amount);
+    out.push({
+      date, amount,
+      section,
+      category: defaultCategory(section),
+      note: noteCol>=0 ? String(r[noteCol]||"").slice(0,60) : ""
+    });
+  }
+  return out;
+}
+
+function looksLikeDate(v){
+  if(v instanceof Date) return true;
+  const s = String(v);
+  return /^\d{1,2}[.\/-]\d{1,2}[.\/-]\d{2,4}/.test(s) || /^\d{4}-\d{2}-\d{2}/.test(s);
+}
+function normalizeDate(v){
+  if(v instanceof Date && !isNaN(v)) return v.toISOString().slice(0,10);
+  const s = String(v).trim();
+  let m = s.match(/^(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{2,4})/);
+  if(m){
+    let [_, d, mo, y] = m;
+    if(y.length===2) y = "20"+y;
+    return `${y}-${mo.padStart(2,"0")}-${d.padStart(2,"0")}`;
+  }
+  m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if(m) return `${m[1]}-${m[2]}-${m[3]}`;
+  return null;
+}
+
+// --- receipt photo OCR ---
+function onReceiptFile(e){
+  const file = e.target.files[0];
+  if(!file) return;
+  if(typeof Tesseract === "undefined"){ showToast("Нет соединения с интернетом — распознавание недоступно офлайн"); return; }
+  const statusEl = document.getElementById("ocr-status");
+  const statusText = document.getElementById("ocr-status-text");
+  statusEl.style.display = "flex";
+  statusText.textContent = "Распознаём текст…";
+
+  Tesseract.recognize(file, "rus+eng", { logger: m=>{
+    if(m.status==="recognizing text" && statusText) statusText.textContent = `Распознаём… ${Math.round((m.progress||0)*100)}%`;
+  }}).then(({ data: { text } })=>{
+    statusEl.style.display = "none";
+    const guess = extractReceiptInfo(text);
+    draftRows.push({
+      date: guess.date || todayISO(),
+      amount: guess.amount || 0,
+      section: "expense",
+      category: SECTIONS.expense.categories[0],
+      note: "Чек" + (guess.amount ? "" : " (сумму не нашли — впишите вручную)")
+    });
+    showToast(guess.amount ? "Чек распознан — проверьте сумму" : "Не нашли сумму — впишите вручную");
+    renderDraftArea();
+  }).catch(err=>{
+    console.error(err);
+    statusEl.style.display = "none";
+    showToast("Не удалось распознать чек");
+  });
+  e.target.value = "";
+}
+
+function extractReceiptInfo(text){
+  const lines = text.split("\n").map(l=>l.trim()).filter(Boolean);
+  let amount = null;
+  const totalKeywords = /итого|к оплате|сумма|total|итог/i;
+  for(const line of lines){
+    if(totalKeywords.test(line)){
+      const nums = line.match(/[\d\s]+[.,]\d{2}|\d+/g);
+      if(nums && nums.length){
+        const val = parseFloat(nums[nums.length-1].replace(/\s/g,"").replace(",", "."));
+        if(!isNaN(val) && val>0){ amount = val; break; }
+      }
+    }
+  }
+  if(amount===null){
+    // fallback: largest number-looking token in the whole text
+    const nums = (text.match(/\d[\d\s]*[.,]\d{2}/g) || []).map(s=>parseFloat(s.replace(/\s/g,"").replace(",", ".")));
+    if(nums.length) amount = Math.max(...nums);
+  }
+  let date = null;
+  const dm = text.match(/(\d{1,2})[.\/](\d{1,2})[.\/](\d{2,4})/);
+  if(dm) date = normalizeDate(dm[0]);
+  return { amount, date };
+}
+
+
+function switchTab(t){
+  tab = t;
+  document.getElementById("entry-tab").classList.toggle("hidden", t!=="entry");
+  document.getElementById("import-tab").classList.toggle("hidden", t!=="import");
+  document.getElementById("report-tab").classList.toggle("hidden", t!=="report");
+  document.getElementById("nav-entry").classList.toggle("active", t==="entry");
+  document.getElementById("nav-import").classList.toggle("active", t==="import");
+  document.getElementById("nav-report").classList.toggle("active", t==="report");
+  if(t==="entry") renderEntryTab();
+  else if(t==="import") renderImportTab();
+  else renderReportTab();
+}
+document.getElementById("nav-entry").addEventListener("click", ()=>switchTab("entry"));
+document.getElementById("nav-import").addEventListener("click", ()=>switchTab("import"));
+document.getElementById("nav-report").addEventListener("click", ()=>switchTab("report"));
+
+document.getElementById("open-settings").addEventListener("click", ()=>{
+  document.getElementById("year-input").value = settings.year;
+  document.getElementById("start-balance-input").value = settings.startBalance;
+  document.getElementById("settings-overlay").classList.remove("hidden");
+});
+document.getElementById("close-settings").addEventListener("click", ()=>{
+  document.getElementById("settings-overlay").classList.add("hidden");
+});
+document.getElementById("settings-overlay").addEventListener("click", (e)=>{
+  if(e.target.id==="settings-overlay") document.getElementById("settings-overlay").classList.add("hidden");
+});
+document.getElementById("year-input").addEventListener("change", e=>{
+  settings.year = parseInt(e.target.value) || settings.year;
+  saveSettings(settings);
+  document.getElementById("header-sub").textContent = `личный · ${settings.year}`;
+  if(tab==="report") renderReportTab();
+});
+document.getElementById("start-balance-input").addEventListener("change", e=>{
+  settings.startBalance = parseFloat(e.target.value) || 0;
+  saveSettings(settings);
+  if(tab==="report") renderReportTab();
+});
+
+// ---------- error visibility (so a silent JS error doesn't look like "nothing happens") ----------
+window.addEventListener("error", (e)=>{
+  showToast("Ошибка: " + e.message);
+  console.error(e);
+});
+
+// ---------- export to Excel ----------
+function exportToExcel(){
+  if(typeof XLSX === "undefined"){
+    showToast("Нет соединения с интернетом — экспорт недоступен офлайн");
+    return;
+  }
+  const year = settings.year;
+  const yEntries = yearEntries().slice().sort((a,b)=> a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
+
+  // --- Sheet 1: raw list of entries ---
+  const rows1 = [["Дата","Тип","Статья","Сумма","Заметка"]];
+  yEntries.forEach(e=>{
+    rows1.push([e.date, SECTIONS[e.section].label.replace(/^Итого /,'') , e.category, SECTIONS[e.section].sign>0 ? e.amount : -e.amount, e.note||""]);
+  });
+  const ws1 = XLSX.utils.aoa_to_sheet(rows1);
+  ws1['!cols'] = [{wch:12},{wch:14},{wch:32},{wch:14},{wch:30}];
+
+  // --- Sheet 2: report by category x decade x month, like the original file ---
+  const rows2 = [];
+  const header = ["Статья"];
+  MONTHS.forEach(m=>{ header.push(m+" I", m+" II", m+" III", m+" Итого"); });
+  header.push("Итого за год");
+  rows2.push(header);
+
+  const allCats = [];
+  Object.entries(SECTIONS).forEach(([key,sect])=>{
+    rows2.push([sect.label.toUpperCase()]);
+    sect.categories.forEach(c=> allCats.push({cat:c, section:key}));
+    sect.categories.forEach(c=>{
+      const row = [c];
+      let yearTotal = 0;
+      for(let m=0;m<12;m++){
+        const me = monthEntriesFor(m).filter(e=>e.category===c);
+        const d = [0,0,0];
+        me.forEach(e=>{ d[decadeOf(new Date(e.date+"T00:00:00").getDate())] += e.amount; });
+        const mTotal = d[0]+d[1]+d[2];
+        row.push(d[0]||"", d[1]||"", d[2]||"", mTotal||"");
+        yearTotal += mTotal;
+      }
+      row.push(yearTotal||"");
+      rows2.push(row);
+    });
+  });
+
+  rows2.push([]);
+  const summaryRow = (label, fn) => {
+    const row = [label];
+    let yearTotal = 0;
+    for(let m=0;m<12;m++){
+      const v = fn(m);
+      row.push("","","", v||"");
+      yearTotal += v;
+    }
+    row.push(yearTotal||"");
+    return row;
+  };
+  const monthIn = m => monthEntriesFor(m).filter(e=>e.section==="income").reduce((s,e)=>s+e.amount,0);
+  const monthOut = m => monthEntriesFor(m).filter(e=>e.section==="expense").reduce((s,e)=>s+e.amount,0);
+  const monthInvest = m => -monthEntriesFor(m).filter(e=>e.section==="investOut").reduce((s,e)=>s+e.amount,0);
+  const monthFin = m => monthEntriesFor(m).filter(e=>e.section==="finIn").reduce((s,e)=>s+e.amount,0) - monthEntriesFor(m).filter(e=>e.section==="finOut").reduce((s,e)=>s+e.amount,0);
+  const monthCFrow = m => monthIn(m)-monthOut(m)+monthInvest(m)+monthFin(m);
+
+  rows2.push(summaryRow("Итого приток", monthIn));
+  rows2.push(summaryRow("Итого отток", m=>-monthOut(m)));
+  rows2.push(summaryRow("ДДС операционная", m=>monthIn(m)-monthOut(m)));
+  rows2.push(summaryRow("ДДС инвестиционная", monthInvest));
+  rows2.push(summaryRow("ДДС финансовая", monthFin));
+  rows2.push(summaryRow("Итого денежный поток", monthCFrow));
+  rows2.push(summaryRow("Остаток на начало периода", m=>balanceBeforeMonth(m)));
+  rows2.push(summaryRow("Остаток на конец периода", m=>balanceBeforeMonth(m)+monthCFrow(m)));
+
+  const ws2 = XLSX.utils.aoa_to_sheet(rows2);
+  ws2['!cols'] = [{wch:34}, ...Array(48).fill({wch:9})];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws1, "Записи");
+  XLSX.utils.book_append_sheet(wb, ws2, `Отчёт ${year}`);
+  XLSX.writeFile(wb, `Кассовый_план_${year}.xlsx`);
+  showToast("Файл скачан");
+}
+document.getElementById("export-excel-btn").addEventListener("click", exportToExcel);
+
+// ---------- init ----------
+document.getElementById("header-sub").textContent = `личный · ${settings.year}`;
+renderEntryTab();
+</script>
+</body>
+</html>
